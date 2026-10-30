@@ -1191,6 +1191,7 @@
         let voiceAudioElement = new Audio();
         let isVoicePlaying = false;
         let wasBgmPlayingBeforeVoice = false;
+        // Keep the music quietly underneath the recorded birthday greeting.
 
         // ==========================================
         // 8-BIT WEB AUDIO SYNTHESIZER (No external files needed)
@@ -1264,7 +1265,7 @@
                 bgmInterval = setInterval(() => {
                     if (!isBgmPlaying) return;
                     const note = HBD_MELODY[noteStep % HBD_MELODY.length];
-                    playTone(note.f, note.d, 'square', 0.045);
+                    playTone(note.f, note.d, 'square', isVoicePlaying ? 0.012 : 0.045);
                     noteStep++;
                 }, 380);
             } else {
@@ -1388,7 +1389,13 @@
             const durationDisplay = document.getElementById('voiceDurationDisplay');
 
             if (appState.voiceAudioDataUrl) {
-                voiceAudioElement.src = appState.voiceAudioDataUrl;
+                // Do not reset the media source every time the UI rerenders.
+                // Resetting src aborts pending playback and can require two presses.
+                if (voiceAudioElement.src !== appState.voiceAudioDataUrl) {
+                    voiceAudioElement.src = appState.voiceAudioDataUrl;
+                    voiceAudioElement.preload = 'auto';
+                    voiceAudioElement.load();
+                }
                 statusText.textContent = 'มีเทปเสียงอวยพรบันทึกไว้แล้ว กด ▶ เพื่อฟังเลย!';
                 if (deleteBtn) deleteBtn.classList.remove('hidden');
                 if (cassetteSection) cassetteSection.classList.remove('hidden');
@@ -1549,21 +1556,20 @@
                 return;
             }
 
-            // Pause 8-bit BGM temporarily so user's voice is crystal clear
-            wasBgmPlayingBeforeVoice = isBgmPlaying;
-            if (isBgmPlaying) {
-                isBgmPlaying = false;
-                if (bgmInterval) clearInterval(bgmInterval);
-            }
-
+            // Start playback directly within the user's click gesture (autoplay policy).
+            // Music continues softly underneath the voice instead of stopping.
             voiceAudioElement.currentTime = 0;
-            voiceAudioElement.play().then(() => {
-                isVoicePlaying = true;
-                setVoicePlayingUI(true);
-            }).catch(err => {
-                console.warn('Audio play error:', err);
-                showToast('⚠️ ไม่สามารถเล่นไฟล์เสียงได้');
-            });
+            isVoicePlaying = true;
+            setVoicePlayingUI(true);
+            const playAttempt = voiceAudioElement.play();
+            if (playAttempt && typeof playAttempt.catch === 'function') {
+                playAttempt.catch(err => {
+                    console.warn('Audio play error:', err);
+                    isVoicePlaying = false;
+                    setVoicePlayingUI(false);
+                    showToast('⚠️ เล่นเสียงอวยพรไม่ได้ ลองเปิดผ่าน Chrome หรือกดเล่นอีกครั้ง');
+                });
+            }
 
             voiceAudioElement.ontimeupdate = () => {
                 const dur = document.getElementById('voiceDurationDisplay');
@@ -1584,11 +1590,7 @@
             isVoicePlaying = false;
             setVoicePlayingUI(false);
 
-            // Restore BGM if it was playing before voice started
-            if (wasBgmPlayingBeforeVoice && !isBgmPlaying) {
-                wasBgmPlayingBeforeVoice = false;
-                toggleBGM(true);
-            }
+            // The BGM has remained playing quietly; normal volume resumes automatically.
         }
 
         function setVoicePlayingUI(playing) {
@@ -1622,8 +1624,14 @@
         // STAGE & MODE SWITCHING
         // ==========================================
         function startJourney() {
-            playSfxClick();
+            // PRESS START is the first user gesture that can unlock audible playback.
+            // Play the embedded personal recording immediately along with the music.
+            initAudio();
             toggleBGM(true);
+            if (appState.voiceAudioDataUrl && !isVoicePlaying) {
+                togglePlayVoiceMessage();
+            }
+            playSfxClick();
             goToStage(2);
         }
 
