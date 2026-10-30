@@ -311,7 +311,7 @@
             <!-- Right: Music, Save HTML & Reset -->
             <div class="flex items-center gap-2">
                 <button id="bgmToggleBtn" onclick="toggleBGM()" class="pixel-btn pixel-btn-white text-xs px-2.5 py-1.5 font-bold" title="เปิด/ปิดเพลง 8-Bit">
-                    <span id="bgmIcon">🔇</span> <span class="hidden md:inline" id="bgmLabel">เพลง 8-Bit</span>
+                    <span id="bgmIcon">🔊</span> <span class="hidden md:inline" id="bgmLabel">กำลังเล่นเพลง</span>
                 </button>
 
                 <button onclick="exportStandaloneHTML()" class="edit-only pixel-btn pixel-btn-gold text-xs px-3 py-1.5 font-bold" title="ดาวน์โหลดไฟล์เว็บที่ตกแต่งเสร็จแล้วส่งให้แฟน">
@@ -1283,6 +1283,15 @@
             loadState();
             renderAll();
             createFloatingBackground();
+
+            // Default music to ON from the opening screen. Browsers may delay
+            // audible output until a real user gesture unlocks AudioContext.
+            toggleBGM(true);
+            const unlockDefaultAudio = () => {
+                if (isBgmPlaying) initAudio();
+            };
+            window.addEventListener('pointerdown', unlockDefaultAudio, { passive: true });
+            window.addEventListener('keydown', unlockDefaultAudio);
 
             if (window.__START_IN_PLAY_MODE__) {
                 setEditMode(false);
